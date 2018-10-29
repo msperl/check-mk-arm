@@ -51,6 +51,10 @@ tar czf omd/packages/snap7/snap7-full-${SNAP7_VERSION}.tar.gz -C omd/packages/sn
 # compile and package
 make deb DEBFULLNAME="Christian Hofer" DEBEMAIL=chrisss404@gmail.com
 
+# package the dockerfile for later reuse
+cp -av omd/distros/DEBIAN*.mk docker
+tar cvzf check-mk-raw-${VERSION}-docker.tar.gz docker
+
 # cleanup
 if [ $? -eq 0 ]; then
     mv check-mk-raw-${VERSION}* ..

@@ -56,10 +56,35 @@ push_cmk_deb: cmk_deb
 	  check_mk-build-deb:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH) \
 	  $(DOCKER_HUB_USER)/check_mk-build-deb:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)
 
-check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar.gz: cmk_deb
+check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar.gz:
 	mkdir -p check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)
 	docker run --rm check_mk-build-deb:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH) \
 	  sh -c 'tar cvf - check-mk-raw-$(CMK_VERSION)*' \
         | tee check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar \
         | tar xvf - -C check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/
-	gzip -v check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar
+	gzip -vf check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar
+
+PHONY: cmk_docker_image
+cmk_docker_image: cmk_deb
+	# extract the docker tar into a separate directory
+	rm -rf cmk_docker
+	mkdir cmk_docker
+	tar -xvz \
+	  -C cmk_docker \
+	  --strip-components=1 \
+	  -f check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/check-mk-raw-$(CMK_VERSION)-docker.tar.gz \
+	  docker/
+	# extract the variables to file
+	echo 'all:\n\techo $$(OS_PACKAGES) > needed-packages' | make -C cmk_docker -f DEBIAN_9.mk -f -
+	# link the package here
+	ln -f check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/check-mk-*.deb cmk_docker
+	# strip out dpkg-sig
+	sed -i "/dpkg-sig/d" cmk_docker/Dockerfile
+	# and build docker image
+	docker build cmk_docker \
+	  -t check_mk:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH) \
+	  --build-arg DEB_RELEASE=$(DEB_RELEASE) \
+	  --build-arg ARCH=$(ARCH) \
+	  --build-arg GCC_VERSION=$(GCC_VERSION) \
+	  --build-arg CMK_VERSION=$(CMK_VERSION) \
+	  --build-arg CMK_EDITION=raw
