@@ -1,0 +1,108 @@
+ARG DEB_RELEASE=stretch
+ARG ARCH=arm
+ARG GCC_VERSION="7.3.0"
+FROM check_mk-build-gcc:${DEB_RELEASE}-${GCC_VERSION}-${ARCH}
+ARG DEB_RELEASE=stretch
+ARG ARCH=arm
+ARG GCC_VERSION="7.3.0"
+ARG CMK_VERSION="1.5.0p7"
+
+# build everything inside /root
+WORKDIR /root
+
+# install dependencies first:
+RUN \
+    # fail on errors (to avoid those && lines, which sometimes do not work propperly anyway)
+    set -e; \
+    trap "echo Failed..." 0; \
+    # update apt-get
+    apt-get update; \
+    # this is failing under some circumstances
+    if \
+      apt-get install -y openjdk-8-jdk-headless openjdk-8-jdk ;\
+    then \
+      /bin/true; \
+    else \
+      # create a softlink if it is missing on arm
+      if test -d /usr/lib/jvm/java-8-openjdk-armhf/jre/lib/arm/client/. ; then \
+        if test ! -d /usr/lib/jvm/java-8-openjdk-armhf/jre/lib/arm/server/. ; then \
+          echo "Failing here is unfortunately OK on arm..." ; \
+          ln -vs client /usr/lib/jvm/java-8-openjdk-armhf/jre/lib/arm/server ; \
+        else \
+          echo "unknown error case - no mitigation on arm" ;\
+          exit 1; \
+        fi ; \
+      else \
+        echo "unknown error case - no known mitigation on other cpu versions" ; \
+        exit 1; \
+      fi ; \
+    fi ; \
+    # install necessary tools - the script does not install all of the requirements (or so it seems)
+    apt-get -y install \
+      # basic packages
+      apache2 \
+      build-essential \
+      debhelper \
+      dnsutils \
+      dpatch \
+      flex \
+      fping \
+      git \
+      git-buildpackage \
+      make \
+      rpcbind \
+      rrdtool \
+      smbclient \
+      snmp \
+      # development library packages
+      apache2-dev \
+      default-libmysqlclient-dev \
+      dietlibc-dev \
+      libboost-all-dev \
+      libboost-dev \
+      libcloog-ppl1 \
+      libcurl4-openssl-dev \
+      libdbi-dev \
+      libevent-dev \
+      libffi-dev \
+      libfreeradius-dev \
+      libgd-dev \
+      libglib2.0-dev \
+      libgnutls28-dev \
+      libgsf-1-dev \
+      libkrb5-dev \
+      libmcrypt-dev \
+      libncurses5-dev \
+      libpango1.0-dev \
+      libpcap-dev \
+      libperl-dev \
+      libpq-dev \
+      libreadline-dev \
+      librrd-dev \
+      libsqlite3-dev \
+      libssl1.0-dev \
+      libxml2-dev \
+      tk-dev \
+      uuid-dev \
+    ; \
+    # and finish ok
+    trap "" 0; \
+    echo "Finished OK"; \
+    apt-get clean all; \
+    rm -rf /var/cache/apt
+
+COPY build_check_mk.sh python-Makefile-disable-optimization.patch /root/
+
+RUN \
+    # fail on errors (to avoid those && lines, which sometimes do not work propperly anyway)
+    set -e; \
+    trap "echo Failed...; sleep 7200" 0; \
+    # update apt-get
+    apt-get update; \
+    # and start building - we may want to incorporate all the steps here and remove the script...
+    sh ./build_check_mk.sh ${CMK_VERSION}; \
+    # and handle exit now correclty
+    trap "" 0; \
+    echo "Finished OK"; \
+    apt-get clean all; \
+    rm -rf /var/cache/apt

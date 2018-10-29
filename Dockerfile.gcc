@@ -1,0 +1,53 @@
+ARG DEB_RELEASE=stretch
+ARG ARCH=arm
+FROM check_mk-build-base:${DEB_RELEASE}-${ARCH}
+ARG DEB_RELEASE=stretch
+ARG ARCH=arm
+ARG GCC_VERSION="7.3.0"
+ARG PARALLEL_BUILD=1
+
+RUN \
+    set -e; \
+    # download gcc
+    wget -qO- "https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.gz" \
+    | tar xzf - -C /root ; \
+    # install essentials
+    apt-get update; \
+    # download prerequistites
+    cd "/root/gcc-${GCC_VERSION}"; contrib/download_prerequisites; \
+    # decide on additional parameters for building per target
+    case "$ARCH" in \
+      arm) CONFIG_ARGS="\
+          --with-arch=armv6 \
+          --with-fpu=vfp \
+          --with-float=hard \
+          --build=arm-linux-gnueabihf \
+          --host=arm-linux-gnueabihf \
+          --target=arm-linux-gnueabihf \
+        ";; \
+      *) CONFIG_ARGS="" ;; \
+    esac; \
+    # create the build directroy
+    mkdir /root/build; \
+    cd /root/build; \
+    # and configure it
+    echo "Configuring build with architecture specific configs: $CONFIG_ARGS"; \
+    ../gcc-${GCC_VERSION}/configure -v \
+      --enable-languages=c,c++ \
+      --prefix=/opt/gcc-${GCC_VERSION} \
+      --program-suffix=-${GCC_VERSION} \
+      $CONFIG_ARGS; \
+    # build in parallel
+    make -j ${PARALLEL_BUILD} ; \
+    # and install
+    make install-strip ;\
+    # remove build artefacts
+    cd /; rm -rf /root/build /root/gcc-${GCC_VERSION}; \
+    # cleanup
+    apt-get clean all; \
+    rm -rf /var/cache/apt ;\
+    # and install gcc as alternatives and default alternative
+    update-alternatives --install /usr/bin/gcc gcc /opt/gcc-${GCC_VERSION}/bin/gcc-${GCC_VERSION} 10 ; \
+    update-alternatives --install /usr/bin/g++ g++ /opt/gcc-${GCC_VERSION}/bin/g++-${GCC_VERSION} 10; \
+    update-alternatives --set gcc /opt/gcc-${GCC_VERSION}/bin/gcc-${GCC_VERSION} ; \
+    update-alternatives --set g++ /opt/gcc-${GCC_VERSION}/bin/g++-${GCC_VERSION}

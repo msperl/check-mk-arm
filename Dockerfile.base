@@ -1,0 +1,26 @@
+# build a basic build debian image
+ARG DEB_RELEASE=stretch
+FROM debian:${DEB_RELEASE}
+ARG DEB_RELEASE=stretch
+
+# install the basics
+RUN \
+    set -e; \
+    apt-get update; \
+    apt-get -y install \
+      git \
+      make \
+      devscripts \
+      debhelper \
+      flex \
+      bison \
+      build-essential \
+      gzip \
+      xzip \
+      bzip2 \
+      groff \
+      wget \
+      curl \
+    ; \
+    apt-get clean all; \
+    rm -rf /var/cache/apt
