@@ -6,8 +6,8 @@ DEB_RELEASE=stretch
 ARCH=arm
 PARALLEL_BUILD=$(shell grep -c "^processor" /proc/cpuinfo)
 
-all: base gcc cmk_deb check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar.gz
-#push: push_base push_gcc
+all: base gcc cmk_deb check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar.gz cmk_docker_image
+push: push_base push_gcc push_cmk_deb push_cmk_img
 
 PHONY: base
 base:
@@ -21,7 +21,8 @@ push_base: base
 	docker tag \
 	  check_mk-build-base:$(DEB_RELEASE)-$(ARCH) \
 	  $(DOCKER_HUB_USER)/check_mk-build-base:$(DEB_RELEASE)-$(ARCH)
-	docker push $(DOCKER_HUB_USER)/check_mk-build-base:$(DEB_RELEASE)-$(ARCH)
+	docker push \
+	  $(DOCKER_HUB_USER)/check_mk-build-base:$(DEB_RELEASE)-$(ARCH)
 
 PHONY: gcc
 gcc: base
@@ -38,7 +39,8 @@ push_gcc: gcc
 	docker tag \
 	  check_mk-build-gcc:$(DEB_RELEASE)-$(GCC_VERSION)-$(ARCH) \
 	  $(DOCKER_HUB_USER)/check_mk-build-gcc:$(DEB_RELEASE)-$(GCC_VERSION)-$(ARCH)
-	docker push $(DOCKER_HUB_USER)/check_mk-build-gcc:$(GCC_VERSION)-$(ARCH)
+	docker push \
+	  $(DOCKER_HUB_USER)/check_mk-build-gcc:$(DEB_RELEASE)-$(GCC_VERSION)-$(ARCH)
 
 PHONY: cmk_deb
 cmk_deb: gcc
@@ -54,6 +56,8 @@ PHONY: push_cmk_deb
 push_cmk_deb: cmk_deb
 	docker tag \
 	  check_mk-build-deb:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH) \
+	  $(DOCKER_HUB_USER)/check_mk-build-deb:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)
+	docker push \
 	  $(DOCKER_HUB_USER)/check_mk-build-deb:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)
 
 check-mk-raw/$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)/all.tar.gz:
@@ -88,3 +92,13 @@ cmk_docker_image: cmk_deb
 	  --build-arg GCC_VERSION=$(GCC_VERSION) \
 	  --build-arg CMK_VERSION=$(CMK_VERSION) \
 	  --build-arg CMK_EDITION=raw
+	# remove directory
+	rm -rf cmk_docker
+
+PHONY: push_cmk_img
+push_cmk_img: cmk_docker_image
+	docker tag \
+	  check_mk:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH) \
+	  $(DOCKER_HUB_USER)/check_mk:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)
+	docker push \
+	  $(DOCKER_HUB_USER)/check_mk:$(CMK_VERSION)-$(GCC_VERSION)-$(ARCH)
